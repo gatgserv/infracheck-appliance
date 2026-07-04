@@ -1,0 +1,692 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "panels": [],
+      "title": "Overview and Alerts",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "network_probe_health_score{category=\"overall\"}",
+          "refId": "A"
+        }
+      ],
+      "title": "Overall Health",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(ALERTS{alertstate=\"firing\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Alerts",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "network_probe_health_score",
+          "legendFormat": "{{category}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Health Scores by Category",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 5,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Firing Alerts",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 6,
+      "panels": [],
+      "title": "WAN Quality",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 13
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "network_probe_ping_latency_ms",
+          "legendFormat": "{{target_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 13
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "network_probe_ping_loss_percent",
+          "legendFormat": "{{target_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Packet Loss",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 13
+      },
+      "id": 9,
+      "targets": [
+        {
+          "expr": "network_probe_ping_jitter_ms",
+          "legendFormat": "{{target_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Jitter",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 100
+              }
+            ]
+          },
+          "unit": "Mbits"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 20
+      },
+      "id": 10,
+      "targets": [
+        {
+          "expr": "network_probe_speedtest_download_mbps",
+          "legendFormat": "{{target_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "WAN Download Mbps",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "Mbits"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 20
+      },
+      "id": 11,
+      "targets": [
+        {
+          "expr": "network_probe_speedtest_upload_mbps",
+          "legendFormat": "{{target_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "WAN Upload Mbps",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "failed"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "ok"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 20
+      },
+      "id": 12,
+      "targets": [
+        {
+          "expr": "network_probe_speedtest_success",
+          "legendFormat": "{{target_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "WAN Speed Test Status",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 13,
+      "panels": [],
+      "title": "DNS, HTTP, and TLS",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 27
+      },
+      "id": 14,
+      "targets": [
+        {
+          "expr": "network_probe_dns_lookup_duration_ms",
+          "legendFormat": "{{resolver_name}} {{domain}} {{record_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "DNS Lookup Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 27
+      },
+      "id": 15,
+      "targets": [
+        {
+          "expr": "network_probe_http_duration_ms",
+          "legendFormat": "{{target_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 27
+      },
+      "id": 16,
+      "targets": [
+        {
+          "expr": "network_probe_http_tls_days_until_expiry > 0",
+          "legendFormat": "{{target_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "TLS Certificate Days Remaining",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 17,
+      "panels": [],
+      "title": "LAN Inventory and Technician Tools",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 35
+      },
+      "id": 18,
+      "targets": [
+        {
+          "expr": "network_probe_lan_devices_total",
+          "refId": "A"
+        }
+      ],
+      "title": "Known LAN Devices",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 35
+      },
+      "id": 19,
+      "targets": [
+        {
+          "expr": "network_probe_lan_new_devices_total",
+          "refId": "A"
+        }
+      ],
+      "title": "New LAN Devices",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 35
+      },
+      "id": 20,
+      "targets": [
+        {
+          "expr": "network_probe_lan_missing_devices_total",
+          "refId": "A"
+        }
+      ],
+      "title": "Missing LAN Devices",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "text": "stopped"
+                },
+                "1": {
+                  "color": "green",
+                  "text": "running"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 35
+      },
+      "id": 21,
+      "targets": [
+        {
+          "expr": "network_probe_iperf_server_up",
+          "legendFormat": "port {{port}}",
+          "refId": "A"
+        }
+      ],
+      "title": "iperf3 Server Status",
+      "type": "stat"
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 40,
+  "tags": [
+    "infracheck"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Infracheck Overview",
+  "uid": "infracheck-overview",
+  "version": 1,
+  "weekStart": ""
+}

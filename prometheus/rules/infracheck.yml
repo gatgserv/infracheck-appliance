@@ -1,0 +1,92 @@
+groups:
+  - name: infracheck.rules
+    rules:
+      - alert: InfracheckAgentDown
+        expr: up{job="infracheck-agent"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Infracheck agent scrape is down"
+          description: "Prometheus cannot scrape the Infracheck agent on {{ $labels.instance }}."
+
+      - alert: GatewayPacketLoss
+        expr: network_probe_ping_loss_percent{target_type="gateway"} > 20
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway packet loss is high"
+          description: "Gateway {{ $labels.target_host }} has {{ $value }}% packet loss."
+
+      - alert: InternetTargetDown
+        expr: network_probe_target_up{target_type="internet"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Internet probe target is unreachable"
+          description: "{{ $labels.target_name }} at {{ $labels.target_host }} is unreachable."
+
+      - alert: DNSLookupFailing
+        expr: network_probe_dns_lookup_success == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DNS lookup is failing"
+          description: "{{ $labels.resolver_name }} failed {{ $labels.record_type }} lookup for {{ $labels.domain }}."
+
+      - alert: HTTPServiceDown
+        expr: network_probe_http_up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP target is down"
+          description: "{{ $labels.target_name }} at {{ $labels.url }} is failing."
+
+      - alert: TLSCertificateExpiring
+        expr: network_probe_http_tls_days_until_expiry > 0 and network_probe_http_tls_days_until_expiry < 14
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS certificate expires soon"
+          description: "{{ $labels.target_name }} certificate expires in {{ $value }} days."
+
+      - alert: TLSCertificateInvalid
+        expr: network_probe_http_tls_valid == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TLS certificate is invalid"
+          description: "{{ $labels.target_name }} at {{ $labels.url }} has an invalid TLS certificate."
+
+      - alert: WANSpeedtestFailed
+        expr: network_probe_speedtest_success == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WAN speed test failed"
+          description: "The latest WAN speed test for {{ $labels.target_name }} failed."
+
+      - alert: NewLANDeviceDetected
+        expr: network_probe_lan_new_devices_total > 0
+        for: 1m
+        labels:
+          severity: info
+        annotations:
+          summary: "New LAN device detected"
+          description: "{{ $value }} LAN device(s) were first seen in the recent discovery window."
+
+      - alert: LANDeviceMissing
+        expr: network_probe_lan_missing_devices_total > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LAN device missing"
+          description: "{{ $value }} known LAN device(s) have not been seen recently."

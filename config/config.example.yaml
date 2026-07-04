@@ -1,0 +1,118 @@
+site:
+  id: "client-001"
+  name: "Client Demo"
+  location: "Office"
+
+agent:
+  bind_address: "0.0.0.0"
+  port: 8080
+  log_level: "info"
+
+storage:
+  path: "/var/lib/infracheck/infracheck.db"
+
+reports:
+  path: "/var/lib/infracheck/reports"
+
+security:
+  read_token: ""
+  admin_token: ""
+  protect_metrics: false
+  allow_public_reads: true
+
+targets:
+  gateway:
+    enabled: true
+    address: "auto"
+  internet:
+    - name: "Cloudflare DNS"
+      host: "1.1.1.1"
+    - name: "Google DNS"
+      host: "8.8.8.8"
+  http:
+    - name: "Google"
+      url: "https://www.google.com"
+    - name: "Microsoft"
+      url: "https://www.microsoft.com"
+  dns:
+    domains:
+      - "google.com"
+      - "cloudflare.com"
+      - "microsoft.com"
+    resolvers:
+      - name: "system"
+        address: "auto"
+      - name: "cloudflare"
+        address: "1.1.1.1"
+      - name: "google"
+        address: "8.8.8.8"
+  speedtest:
+    enabled: true
+    name: "Cloudflare Speed"
+    download_url: "https://speed.cloudflare.com/__down?bytes=25000000"
+    upload_url: "https://speed.cloudflare.com/__up"
+    download_bytes: 25000000
+    upload_bytes: 5000000
+  discovery:
+    # Empty means auto-detect directly connected IPv4 networks and cap broad masks to /24.
+    # For routed sites, set all desired scan ranges explicitly.
+    cidrs: []
+  advanced:
+    tcp: []
+    public_ip_enabled: false
+    gateway_identity: true
+    network_env: true
+    probe_health: true
+    tls_details: true
+    trace: []
+    ntp: []
+    port_scan:
+      enabled: false
+      ports: [22, 80, 443, 445, 3389, 8080, 8443]
+      limit: 32
+    dns_expectations: []
+
+thresholds:
+  global:
+    packet_loss_warning_percent: 2
+    packet_loss_critical_percent: 10
+    latency_warning_ms: 150
+    latency_critical_ms: 400
+    latency_relative_warning_percent: 200
+    latency_relative_window_days: 7
+    dns_duration_warning_ms: 750
+    dns_duration_critical_ms: 2000
+    http_duration_warning_ms: 2500
+    http_duration_critical_ms: 8000
+    http_relative_warning_percent: 400
+    http_relative_window_days: 7
+    tls_expiry_warning_days: 30
+    tls_expiry_critical_days: 7
+    speed_download_warning_mbps: 0
+    speed_upload_warning_mbps: 0
+    speed_relative_warning_percent: 50
+  # Optional keys are target names, hosts, URLs, or "resolver|domain|record_type".
+  per_target: {}
+
+tests:
+  ping:
+    interval_seconds: 30
+    timeout_seconds: 3
+  dns:
+    interval_seconds: 60
+    timeout_seconds: 3
+  http:
+    interval_seconds: 60
+    timeout_seconds: 5
+  discovery:
+    interval_minutes: 15
+    timeout_seconds: 30
+  speedtest:
+    interval_hours: 6
+    timeout_seconds: 120
+  advanced:
+    interval_minutes: 5
+    timeout_seconds: 90
+  tls_details:
+    interval_hours: 24
+    timeout_seconds: 20

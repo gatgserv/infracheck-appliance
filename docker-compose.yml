@@ -1,0 +1,83 @@
+services:
+  infracheck-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: infracheck-agent
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:false
+    environment:
+      INFRACHECK_CONFIG: /etc/infracheck/config.yaml
+      INFRACHECK_ADMIN_TOKEN: ${INFRACHECK_ADMIN_TOKEN:-change-me-admin-token}
+      INFRACHECK_READ_TOKEN: ${INFRACHECK_READ_TOKEN:-change-me-read-token}
+      INFRACHECK_PROTECT_METRICS: ${INFRACHECK_PROTECT_METRICS:-false}
+      INFRACHECK_ALLOW_PUBLIC_READS: ${INFRACHECK_ALLOW_PUBLIC_READS:-true}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./config/config.yaml:/etc/infracheck/config.yaml:ro,Z
+      - ./data:/var/lib/infracheck:Z
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: infracheck-prometheus
+    network_mode: host
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.listen-address=0.0.0.0:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
+      - ./prometheus/rules:/etc/prometheus/rules:ro,Z
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    depends_on:
+      - infracheck-agent
+      - alertmanager
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: infracheck-alertmanager
+    network_mode: host
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.listen-address=0.0.0.0:9093
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro,Z
+      - alertmanager-data:/alertmanager
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: infracheck-grafana
+    network_mode: host
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      TZ: ${TZ:-UTC}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning:ro,Z
+      - ./dashboards:/var/lib/grafana/dashboards:ro,Z
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: infracheck-blackbox-exporter
+    network_mode: host
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro,Z
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  alertmanager-data:
