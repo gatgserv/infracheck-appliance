@@ -69,6 +69,7 @@ func (a *Agent) Start(ctx context.Context) {
 	go a.runDiscoveryLoop(ctx)
 	go a.runSpeedtestLoop(ctx)
 	go a.runAdvancedLoop(ctx)
+	go a.runIperfStatusLoop(ctx)
 }
 
 func (a *Agent) Router() http.Handler {
@@ -179,6 +180,26 @@ func (a *Agent) runSpeedtestLoop(ctx context.Context) {
 		}
 		if !waitForNextRun(ctx, a.effectiveTests().Speedtest.Duration()) {
 			return
+		}
+	}
+}
+
+func (a *Agent) runIperfStatusLoop(ctx context.Context) {
+	record := func() {
+		status := a.iperf.Status()
+		a.metrics.RecordIperfServer(a.cfg.Site.ID, status.Port, status.Running)
+	}
+
+	record()
+
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			record()
 		}
 	}
 }
