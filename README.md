@@ -6,6 +6,14 @@ Website: [infracheck.app](https://infracheck.app/)
 Product documentation: [infracheck.app/docs.html](https://infracheck.app/docs.html)  
 Start free: [infracheck.app/start-free.html](https://infracheck.app/start-free.html)
 
+Related guides:
+
+- [Docker network monitoring appliance](https://infracheck.app/docker-network-monitoring-appliance.html)
+- [Local-first network monitoring](https://infracheck.app/local-first-network-monitoring.html)
+- [Self-hosted MSP monitoring](https://infracheck.app/self-hosted-msp-monitoring.html)
+- [Network evidence reports](https://infracheck.app/network-evidence-reports.html)
+- [Customer network health reports](https://infracheck.app/customer-network-health-report.html)
+
 ## What it does
 
 Infracheck Appliance is a Docker-based local telemetry stack that runs inside a customer network. It helps diagnose Wi-Fi complaints, WAN instability, DNS failures, HTTP/TLS issues, packet loss, unknown LAN devices, and intermittent support problems that are hard to prove from the outside.
@@ -84,6 +92,12 @@ Use LAN discovery and inventory to identify new devices, missing devices, hostna
 
 Generate reports with health score, findings, checks, alerts, recommendations, and inventory snapshots.
 
+Sample/report-related assets:
+
+- Generated reports are available from the appliance UI and `/api/v1/reports`.
+- The product report workflow is explained at [network evidence reports](https://infracheck.app/network-evidence-reports.html).
+- Release packages can include a bundled installation and operations guide alongside the appliance kit.
+
 ## Documentation
 
 - [Linux installation](docs/install-linux.md)
@@ -124,6 +138,10 @@ See [docs/configuration.md](docs/configuration.md).
 - Read-only API endpoints can be protected by configuration.
 
 See [SECURITY.md](SECURITY.md) and [docs/security.md](docs/security.md).
+
+## Releases
+
+Every release should include a changelog, screenshots when the UI changes, known limitations, upgrade notes, and a tested installation path.
 
 ## Relationship to Infracheck Premium
 
