@@ -192,6 +192,13 @@ func (a *Agent) toolPortScan(w http.ResponseWriter, r *http.Request) {
 		a.logger.Error("failed to save manual port scan result", "error", err, "host", host)
 	}
 	open := parsePortList(result.Details)
+	devices, _ := a.db.Devices(a.cfg.Site.ID)
+	for _, device := range devices {
+		if device.IP == host {
+			a.persistDevicePortScan(device, result)
+			break
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"host":       host,
 		"ports":      ports,
@@ -249,6 +256,9 @@ func (a *Agent) toolDeviceEnrich(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	if len(result.Services) > 0 {
+		enriched = a.persistDeviceServices(enriched, result.Services)
+	}
 	summary := "Identity enrichment completed for " + ip
 	if hostname != "" {
 		summary += ": hostname " + hostname
@@ -259,6 +269,7 @@ func (a *Agent) toolDeviceEnrich(w http.ResponseWriter, r *http.Request) {
 		"device":   enriched,
 		"hostname": hostname,
 		"vendor":   result.Vendor,
+		"services": result.Services,
 		"sources":  result.Sources,
 		"summary":  summary,
 	})

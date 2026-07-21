@@ -113,23 +113,81 @@ type AlertRecord struct {
 }
 
 type Device struct {
-	ID             int64     `json:"id"`
-	SiteID         string    `json:"site_id"`
-	IP             string    `json:"ip"`
-	MAC            string    `json:"mac"`
-	Vendor         string    `json:"vendor,omitempty"`
-	Hostname       string    `json:"hostname,omitempty"`
-	FirstSeen      time.Time `json:"first_seen"`
-	LastSeen       time.Time `json:"last_seen"`
-	SeenCount      int       `json:"seen_count"`
-	Source         string    `json:"source"`
-	OpenPorts      string    `json:"open_ports,omitempty"`
-	Services       string    `json:"services,omitempty"`
-	Notes          string    `json:"notes,omitempty"`
-	MonitorMissing bool      `json:"monitor_missing"`
-	KnownAt        time.Time `json:"known_at,omitempty"`
-	New            bool      `json:"new"`
-	Missing        bool      `json:"missing"`
+	ID                       int64              `json:"id"`
+	SiteID                   string             `json:"site_id"`
+	IP                       string             `json:"ip"`
+	MAC                      string             `json:"mac"`
+	Vendor                   string             `json:"vendor,omitempty"`
+	Hostname                 string             `json:"hostname,omitempty"`
+	FirstSeen                time.Time          `json:"first_seen"`
+	LastSeen                 time.Time          `json:"last_seen"`
+	SeenCount                int                `json:"seen_count"`
+	Source                   string             `json:"source"`
+	OpenPorts                string             `json:"open_ports,omitempty"`
+	Services                 string             `json:"services,omitempty"`
+	Notes                    string             `json:"notes,omitempty"`
+	MonitorMissing           bool               `json:"monitor_missing"`
+	KnownAt                  time.Time          `json:"known_at,omitempty"`
+	New                      bool               `json:"new"`
+	Missing                  bool               `json:"missing"`
+	Category                 string             `json:"category,omitempty"`
+	ClassificationConfidence string             `json:"classification_confidence,omitempty"`
+	ClassificationEvidence   []string           `json:"classification_evidence,omitempty"`
+	RiskFlags                []string           `json:"risk_flags,omitempty"`
+	ClassificationVersion    string             `json:"classification_version,omitempty"`
+	ClassifiedAt             time.Time          `json:"classified_at,omitempty"`
+	PortsObservedAt          time.Time          `json:"ports_observed_at,omitempty"`
+	Expectation              *DeviceExpectation `json:"expectation,omitempty"`
+	SwitchHost               string             `json:"switch_host,omitempty"`
+	SwitchPort               string             `json:"switch_port,omitempty"`
+	SwitchIfName             string             `json:"switch_if_name,omitempty"`
+	VLAN                     string             `json:"vlan,omitempty"`
+}
+
+type DeviceExpectation struct {
+	DeviceID         int64     `json:"device_id"`
+	SiteID           string    `json:"site_id"`
+	Authorization    string    `json:"authorization"`
+	ExpectedCategory string    `json:"expected_category,omitempty"`
+	ExpectedIP       string    `json:"expected_ip,omitempty"`
+	ExpectedPorts    []int     `json:"expected_ports,omitempty"`
+	ExpectedServices []string  `json:"expected_services,omitempty"`
+	ExpectedVLAN     string    `json:"expected_vlan,omitempty"`
+	ExpectedAP       string    `json:"expected_ap,omitempty"`
+	ExpectedSwitch   string    `json:"expected_switch,omitempty"`
+	ExpectedPort     string    `json:"expected_port,omitempty"`
+	MaintenanceUntil time.Time `json:"maintenance_until,omitempty"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type DeviceEvent struct {
+	ID        int64     `json:"id"`
+	Timestamp time.Time `json:"timestamp"`
+	SiteID    string    `json:"site_id"`
+	DeviceID  int64     `json:"device_id"`
+	Type      string    `json:"type"`
+	Severity  string    `json:"severity"`
+	Summary   string    `json:"summary"`
+	Before    string    `json:"before,omitempty"`
+	After     string    `json:"after,omitempty"`
+}
+
+type WiFiObservation struct {
+	SiteID              string    `json:"site_id"`
+	BSSID               string    `json:"bssid"`
+	SSID                string    `json:"ssid"`
+	OUI                 string    `json:"oui,omitempty"`
+	Security            string    `json:"security,omitempty"`
+	Capabilities        string    `json:"capabilities,omitempty"`
+	Band                string    `json:"band,omitempty"`
+	Channel             int       `json:"channel"`
+	FrequencyMHz        int       `json:"frequency_mhz"`
+	RSSIDBm             int       `json:"rssi_dbm"`
+	Connected           bool      `json:"connected"`
+	LocallyAdministered bool      `json:"locally_administered"`
+	Source              string    `json:"source"`
+	FirstSeen           time.Time `json:"first_seen"`
+	LastSeen            time.Time `json:"last_seen"`
 }
 
 type Report struct {
@@ -300,6 +358,63 @@ CREATE TABLE IF NOT EXISTS events (
 	message TEXT NOT NULL,
 	details TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS device_intelligence (
+	device_id INTEGER PRIMARY KEY,
+	category TEXT NOT NULL,
+	confidence TEXT NOT NULL,
+	evidence TEXT NOT NULL,
+	risk_flags TEXT NOT NULL,
+	classifier_version TEXT NOT NULL,
+	classified_at TEXT NOT NULL,
+	ports_observed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS device_events (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	timestamp TEXT NOT NULL,
+	site_id TEXT NOT NULL,
+	device_id INTEGER NOT NULL,
+	type TEXT NOT NULL,
+	severity TEXT NOT NULL,
+	summary TEXT NOT NULL,
+	before_value TEXT NOT NULL,
+	after_value TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_device_events_site_time ON device_events(site_id, timestamp DESC);
+CREATE TABLE IF NOT EXISTS wifi_observations (
+	site_id TEXT NOT NULL,
+	bssid TEXT NOT NULL,
+	ssid TEXT NOT NULL,
+	oui TEXT NOT NULL,
+	security TEXT NOT NULL,
+	capabilities TEXT NOT NULL,
+	band TEXT NOT NULL,
+	channel INTEGER NOT NULL,
+	frequency_mhz INTEGER NOT NULL,
+	rssi_dbm INTEGER NOT NULL,
+	connected INTEGER NOT NULL,
+	locally_administered INTEGER NOT NULL,
+	source TEXT NOT NULL,
+	first_seen TEXT NOT NULL,
+	last_seen TEXT NOT NULL,
+	PRIMARY KEY(site_id, bssid)
+);
+CREATE INDEX IF NOT EXISTS idx_wifi_observations_site_time ON wifi_observations(site_id, last_seen DESC);
+CREATE TABLE IF NOT EXISTS device_expectations (
+	device_id INTEGER PRIMARY KEY,
+	site_id TEXT NOT NULL,
+	authorization TEXT NOT NULL,
+	expected_category TEXT NOT NULL,
+	expected_ip TEXT NOT NULL,
+	expected_ports TEXT NOT NULL,
+	expected_services TEXT NOT NULL,
+	expected_vlan TEXT NOT NULL,
+	expected_ap TEXT NOT NULL,
+	expected_switch TEXT NOT NULL DEFAULT '',
+	expected_port TEXT NOT NULL DEFAULT '',
+	maintenance_until TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_device_expectations_site ON device_expectations(site_id);
 CREATE TABLE IF NOT EXISTS app_settings (
 	key TEXT PRIMARY KEY,
 	value TEXT NOT NULL,
@@ -314,6 +429,8 @@ CREATE TABLE IF NOT EXISTS app_settings (
 		`ALTER TABLE alert_records ADD COLUMN suppressed_until TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE devices ADD COLUMN monitor_missing INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE devices ADD COLUMN known_at TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE device_expectations ADD COLUMN expected_switch TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE device_expectations ADD COLUMN expected_port TEXT NOT NULL DEFAULT ''`,
 	} {
 		if _, err := db.conn.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 			return err
@@ -531,7 +648,14 @@ ORDER BY last_seen DESC`, siteID)
 		return nil, err
 	}
 	defer rows.Close()
-	return scanDevices(rows)
+	devices, err := scanDevices(rows)
+	if err == nil {
+		err = db.attachDeviceIntelligence(devices)
+	}
+	if err == nil {
+		err = db.attachDeviceExpectations(devices)
+	}
+	return devices, err
 }
 
 func (db *DB) Device(siteID string, id int64) (Device, error) {
@@ -549,6 +673,12 @@ WHERE site_id = ? AND id = ?`, siteID, id)
 	}
 	if len(devices) == 0 {
 		return Device{}, sql.ErrNoRows
+	}
+	if err := db.attachDeviceIntelligence(devices); err != nil {
+		return Device{}, err
+	}
+	if err := db.attachDeviceExpectations(devices); err != nil {
+		return Device{}, err
 	}
 	return devices[0], nil
 }
@@ -662,7 +792,14 @@ ORDER BY first_seen DESC`, siteID)
 		return nil, err
 	}
 	defer rows.Close()
-	return scanDevices(rows)
+	devices, err := scanDevices(rows)
+	if err == nil {
+		err = db.attachDeviceIntelligence(devices)
+	}
+	if err == nil {
+		err = db.attachDeviceExpectations(devices)
+	}
+	return devices, err
 }
 
 func (db *DB) MissingDevices(siteID string, since time.Duration) ([]Device, error) {
@@ -676,7 +813,225 @@ ORDER BY last_seen ASC`, siteID, cutoff)
 		return nil, err
 	}
 	defer rows.Close()
-	return scanDevices(rows)
+	devices, err := scanDevices(rows)
+	if err == nil {
+		err = db.attachDeviceIntelligence(devices)
+	}
+	if err == nil {
+		err = db.attachDeviceExpectations(devices)
+	}
+	return devices, err
+}
+
+func (db *DB) attachDeviceIntelligence(devices []Device) error {
+	for i := range devices {
+		var evidenceJSON, risksJSON, classifiedAt, portsAt string
+		err := db.conn.QueryRow(`SELECT category, confidence, evidence, risk_flags, classifier_version, classified_at, ports_observed_at FROM device_intelligence WHERE device_id = ?`, devices[i].ID).
+			Scan(&devices[i].Category, &devices[i].ClassificationConfidence, &evidenceJSON, &risksJSON, &devices[i].ClassificationVersion, &classifiedAt, &portsAt)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		_ = json.Unmarshal([]byte(evidenceJSON), &devices[i].ClassificationEvidence)
+		_ = json.Unmarshal([]byte(risksJSON), &devices[i].RiskFlags)
+		devices[i].ClassifiedAt, _ = time.Parse(time.RFC3339Nano, classifiedAt)
+		devices[i].PortsObservedAt, _ = time.Parse(time.RFC3339Nano, portsAt)
+	}
+	return nil
+}
+
+func (db *DB) attachDeviceExpectations(devices []Device) error {
+	for i := range devices {
+		expectation, err := db.DeviceExpectation(devices[i].SiteID, devices[i].ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		devices[i].Expectation = &expectation
+	}
+	return nil
+}
+
+func (db *DB) DeviceExpectation(siteID string, deviceID int64) (DeviceExpectation, error) {
+	var result DeviceExpectation
+	var portsJSON, servicesJSON, maintenance, updated string
+	err := db.conn.QueryRow(`SELECT device_id, site_id, authorization, expected_category, expected_ip, expected_ports, expected_services, expected_vlan, expected_ap, expected_switch, expected_port, maintenance_until, updated_at FROM device_expectations WHERE site_id = ? AND device_id = ?`, siteID, deviceID).
+		Scan(&result.DeviceID, &result.SiteID, &result.Authorization, &result.ExpectedCategory, &result.ExpectedIP, &portsJSON, &servicesJSON, &result.ExpectedVLAN, &result.ExpectedAP, &result.ExpectedSwitch, &result.ExpectedPort, &maintenance, &updated)
+	if err != nil {
+		return DeviceExpectation{}, err
+	}
+	_ = json.Unmarshal([]byte(portsJSON), &result.ExpectedPorts)
+	_ = json.Unmarshal([]byte(servicesJSON), &result.ExpectedServices)
+	result.MaintenanceUntil, _ = time.Parse(time.RFC3339Nano, maintenance)
+	result.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updated)
+	return result, nil
+}
+
+func (db *DB) DeviceExpectations(siteID string) ([]DeviceExpectation, error) {
+	rows, err := db.conn.Query(`SELECT device_id FROM device_expectations WHERE site_id = ? ORDER BY device_id`, siteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var results []DeviceExpectation
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		item, err := db.DeviceExpectation(siteID, id)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, item)
+	}
+	return results, rows.Err()
+}
+
+func (db *DB) UpsertDeviceExpectation(expectation DeviceExpectation) (DeviceExpectation, error) {
+	portsJSON, _ := json.Marshal(expectation.ExpectedPorts)
+	servicesJSON, _ := json.Marshal(expectation.ExpectedServices)
+	now := time.Now().UTC()
+	maintenance := ""
+	if !expectation.MaintenanceUntil.IsZero() {
+		maintenance = expectation.MaintenanceUntil.UTC().Format(time.RFC3339Nano)
+	}
+	_, err := db.conn.Exec(`INSERT INTO device_expectations(device_id, site_id, authorization, expected_category, expected_ip, expected_ports, expected_services, expected_vlan, expected_ap, expected_switch, expected_port, maintenance_until, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(device_id) DO UPDATE SET site_id=excluded.site_id, authorization=excluded.authorization, expected_category=excluded.expected_category, expected_ip=excluded.expected_ip, expected_ports=excluded.expected_ports, expected_services=excluded.expected_services, expected_vlan=excluded.expected_vlan, expected_ap=excluded.expected_ap, expected_switch=excluded.expected_switch, expected_port=excluded.expected_port, maintenance_until=excluded.maintenance_until, updated_at=excluded.updated_at`,
+		expectation.DeviceID, expectation.SiteID, expectation.Authorization, expectation.ExpectedCategory, expectation.ExpectedIP, string(portsJSON), string(servicesJSON), expectation.ExpectedVLAN, expectation.ExpectedAP, expectation.ExpectedSwitch, expectation.ExpectedPort, maintenance, now.Format(time.RFC3339Nano))
+	if err != nil {
+		return DeviceExpectation{}, err
+	}
+	return db.DeviceExpectation(expectation.SiteID, expectation.DeviceID)
+}
+
+func (db *DB) UpdateDeviceIntelligence(siteID string, deviceID int64, openPorts, services, category, confidence string, evidence, risks []string, version string, observedAt time.Time) (Device, error) {
+	device, err := db.Device(siteID, deviceID)
+	if err != nil {
+		return Device{}, err
+	}
+	evidenceJSON, _ := json.Marshal(evidence)
+	risksJSON, _ := json.Marshal(risks)
+	now := time.Now().UTC()
+	observedAtText := ""
+	if !observedAt.IsZero() {
+		observedAtText = observedAt.UTC().Format(time.RFC3339Nano)
+	}
+	_, err = db.conn.Exec(`UPDATE devices SET open_ports = ?, services = ? WHERE site_id = ? AND id = ?`, openPorts, services, siteID, deviceID)
+	if err != nil {
+		return Device{}, err
+	}
+	_, err = db.conn.Exec(`INSERT INTO device_intelligence(device_id, category, confidence, evidence, risk_flags, classifier_version, classified_at, ports_observed_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(device_id) DO UPDATE SET category=excluded.category, confidence=excluded.confidence, evidence=excluded.evidence, risk_flags=excluded.risk_flags, classifier_version=excluded.classifier_version, classified_at=excluded.classified_at, ports_observed_at=excluded.ports_observed_at`,
+		deviceID, category, confidence, string(evidenceJSON), string(risksJSON), version, now.Format(time.RFC3339Nano), observedAtText)
+	if err != nil {
+		return Device{}, err
+	}
+	updated, err := db.Device(siteID, deviceID)
+	if err != nil {
+		return Device{}, err
+	}
+	if device.OpenPorts != updated.OpenPorts {
+		_ = db.SaveDeviceEvent(DeviceEvent{Timestamp: now, SiteID: siteID, DeviceID: deviceID, Type: "ports_changed", Severity: "warning", Summary: "Observed TCP ports changed", Before: device.OpenPorts, After: updated.OpenPorts})
+	}
+	if device.Category != "" && device.Category != updated.Category {
+		_ = db.SaveDeviceEvent(DeviceEvent{Timestamp: now, SiteID: siteID, DeviceID: deviceID, Type: "category_changed", Severity: "info", Summary: "Device category changed from " + device.Category + " to " + updated.Category, Before: device.Category, After: updated.Category})
+	}
+	return updated, nil
+}
+
+func (db *DB) SaveDeviceEvent(event DeviceEvent) error {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now().UTC()
+	}
+	_, err := db.conn.Exec(`INSERT INTO device_events(timestamp, site_id, device_id, type, severity, summary, before_value, after_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, event.Timestamp.UTC().Format(time.RFC3339Nano), event.SiteID, event.DeviceID, event.Type, event.Severity, event.Summary, event.Before, event.After)
+	return err
+}
+
+func (db *DB) DeviceEvents(siteID string, limit int) ([]DeviceEvent, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 200
+	}
+	rows, err := db.conn.Query(`SELECT id, timestamp, site_id, device_id, type, severity, summary, before_value, after_value FROM device_events WHERE site_id = ? ORDER BY timestamp DESC LIMIT ?`, siteID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []DeviceEvent{}
+	for rows.Next() {
+		var item DeviceEvent
+		var timestamp string
+		if err := rows.Scan(&item.ID, &timestamp, &item.SiteID, &item.DeviceID, &item.Type, &item.Severity, &item.Summary, &item.Before, &item.After); err != nil {
+			return nil, err
+		}
+		item.Timestamp, _ = time.Parse(time.RFC3339Nano, timestamp)
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (db *DB) UpsertWiFiObservations(siteID, source string, observations []WiFiObservation) (int, error) {
+	now := time.Now().UTC()
+	count := 0
+	for _, item := range observations {
+		item.BSSID = strings.ToLower(strings.TrimSpace(item.BSSID))
+		if item.BSSID == "" {
+			continue
+		}
+		if item.FirstSeen.IsZero() {
+			item.FirstSeen = now
+		}
+		if item.LastSeen.IsZero() {
+			item.LastSeen = now
+		}
+		connected, local := 0, 0
+		if item.Connected {
+			connected = 1
+		}
+		if item.LocallyAdministered {
+			local = 1
+		}
+		_, err := db.conn.Exec(`INSERT INTO wifi_observations(site_id,bssid,ssid,oui,security,capabilities,band,channel,frequency_mhz,rssi_dbm,connected,locally_administered,source,first_seen,last_seen)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(site_id,bssid) DO UPDATE SET ssid=excluded.ssid,oui=excluded.oui,security=excluded.security,capabilities=excluded.capabilities,band=excluded.band,channel=excluded.channel,frequency_mhz=excluded.frequency_mhz,rssi_dbm=excluded.rssi_dbm,connected=excluded.connected,locally_administered=excluded.locally_administered,source=excluded.source,last_seen=excluded.last_seen`,
+			siteID, item.BSSID, item.SSID, item.OUI, item.Security, item.Capabilities, item.Band, item.Channel, item.FrequencyMHz, item.RSSIDBm, connected, local, source, item.FirstSeen.UTC().Format(time.RFC3339Nano), item.LastSeen.UTC().Format(time.RFC3339Nano))
+		if err != nil {
+			return count, err
+		}
+		count++
+	}
+	return count, nil
+}
+
+func (db *DB) WiFiObservations(siteID string, limit int) ([]WiFiObservation, error) {
+	if limit <= 0 || limit > 2000 {
+		limit = 500
+	}
+	rows, err := db.conn.Query(`SELECT site_id,bssid,ssid,oui,security,capabilities,band,channel,frequency_mhz,rssi_dbm,connected,locally_administered,source,first_seen,last_seen FROM wifi_observations WHERE site_id=? ORDER BY last_seen DESC LIMIT ?`, siteID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []WiFiObservation{}
+	for rows.Next() {
+		var item WiFiObservation
+		var connected, local int
+		var first, last string
+		if err := rows.Scan(&item.SiteID, &item.BSSID, &item.SSID, &item.OUI, &item.Security, &item.Capabilities, &item.Band, &item.Channel, &item.FrequencyMHz, &item.RSSIDBm, &connected, &local, &item.Source, &first, &last); err != nil {
+			return nil, err
+		}
+		item.Connected = connected == 1
+		item.LocallyAdministered = local == 1
+		item.FirstSeen, _ = time.Parse(time.RFC3339Nano, first)
+		item.LastSeen, _ = time.Parse(time.RFC3339Nano, last)
+		out = append(out, item)
+	}
+	return out, rows.Err()
 }
 
 func scanDevices(rows *sql.Rows) ([]Device, error) {

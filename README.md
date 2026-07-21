@@ -39,7 +39,14 @@ The appliance is designed to complement the Infracheck Android app:
 - Docker Compose deployment for Linux hosts
 - Local web UI for health, alerts, checks, inventory, tools, and reports
 - WAN speed checks, latency, packet loss, jitter, DNS, HTTP, and TLS checks
-- LAN discovery, device inventory, hostname overrides, and technician notes
+- LAN discovery and Device Intelligence with evidence-based categories, confidence, attention flags, port/service history, hostname overrides, and technician notes
+- Explicitly uploaded Android Wi-Fi site surveys with SSID/BSSID, security, band, channel, and RSSI evidence
+- Vendor-neutral authenticated Wi-Fi observation API for controller adapters and exported controller data
+- Coordinated Standard/Wi-Fi/VoIP Site AutoTest profiles for the Android field app
+- Authenticated phone-to-appliance HTTP throughput and temporary token-gated UDP echo tests
+- Progressive ICMP/TCP/UDP path sampling with stable path hashes and optional MTU discovery
+- DHCP server discovery, cross-resolver DNS integrity checks, and SNMP/LLDP neighbor collection
+- Per-device expected-state baselines for authorization, IP, category, ports, services, and maintenance windows
 - Health score, verdict engine, triage hints, and recommendations
 - Alertmanager, Prometheus, Grafana, and blackbox-exporter integration
 - PDF/HTML evidence reports for support tickets and customer reviews
@@ -72,6 +79,20 @@ Open the services:
 - Prometheus: `http://localhost:9090`
 - Alertmanager: `http://localhost:9093`
 
+### Wi-Fi survey and controller ingestion
+
+Android uploads use the paired Appliance automatically after technician confirmation. Controller adapters can use the same normalized, admin-token-protected endpoint without placing controller credentials in InfraCheck:
+
+```http
+POST /api/v1/wifi/observations
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{"source":"unifi-controller","observations":[{"ssid":"Office","bssid":"aa:bb:cc:dd:ee:ff","security":"WPA2/WPA3","band":"5 GHz","channel":36,"frequency_mhz":5180,"rssi_dbm":-55}]}
+```
+
+Use source names such as `unifi-controller`, `omada-controller`, or `aruba-controller`. The endpoint stores normalized observations locally and does not contact controller or cloud services itself.
+
 For a full installation guide, see [docs/install-linux.md](docs/install-linux.md).
 
 ## Common troubleshooting workflows
@@ -86,7 +107,7 @@ Use the Android app for RSSI, BSSID, channel, and roaming evidence, then compare
 
 ### "Something appeared on the network"
 
-Use LAN discovery and inventory to identify new devices, missing devices, hostnames, MAC addresses, and technician notes.
+Use LAN discovery and Device Intelligence to identify new or missing devices, classify observed roles, review changed ports and attention flags, and record owner/location notes.
 
 ### "We need a customer report"
 
@@ -122,6 +143,9 @@ Important settings:
 - `INFRACHECK_PROTECT_METRICS`
 - `INFRACHECK_ALLOW_PUBLIC_READS`
 - `INFRACHECK_SITE_ID`
+- `INFRACHECK_SNMP_COMMUNITY` (optional; used only when the API request omits a community)
+
+The UDP VoIP-readiness echo listens on port `5202` only during a short authenticated test session. If host networking is replaced with explicit Docker port mappings, publish `5202/udp` as well as the web/API port.
 - `INFRACHECK_SITE_NAME`
 - `INFRACHECK_SITE_LOCATION`
 - discovery CIDRs under `targets.discovery.cidrs`

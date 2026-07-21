@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/infracheck/infracheck/container/agent/internal/runner"
 	"github.com/infracheck/infracheck/container/agent/internal/storage"
 )
 
@@ -64,6 +65,15 @@ type portHistoryRow struct {
 type portPoint struct {
 	Timestamp time.Time `json:"timestamp"`
 	Ports     []int     `json:"ports"`
+}
+
+type managedSwitchTopology struct {
+	Host      string                      `json:"host"`
+	Success   bool                        `json:"success"`
+	Summary   string                      `json:"summary"`
+	Timestamp time.Time                   `json:"timestamp"`
+	Neighbors []runner.LLDPNeighbor       `json:"neighbors"`
+	MACTable  []runner.SwitchPortLocation `json:"mac_table"`
 }
 
 func (a *Agent) dnsDiagnostics(w http.ResponseWriter, _ *http.Request) {
@@ -205,6 +215,7 @@ func (a *Agent) portHistory(w http.ResponseWriter, _ *http.Request) {
 
 func (a *Agent) topology(w http.ResponseWriter, _ *http.Request) {
 	devices, _ := a.db.Devices(a.cfg.Site.ID)
+	devices = a.ensureDeviceIntelligence(devices)
 	ping, _ := a.db.LatestPing("", 100)
 	dns, _ := a.db.RecentDNS(100)
 	httpRows, _ := a.db.RecentHTTP(100)
@@ -233,14 +244,70 @@ func (a *Agent) topology(w http.ResponseWriter, _ *http.Request) {
 			services[label] = row.Up
 		}
 	}
+	managedSwitches := a.latestManagedSwitchTopology()
+	a.attachManagedSwitchLocations(devices)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"site":          a.cfg.Site,
-		"gateway":       gateway,
-		"devices":       devices,
-		"dns_resolvers": mapKeys(dnsResolvers),
-		"services":      services,
-		"speed":         speed,
+		"site":             a.cfg.Site,
+		"gateway":          gateway,
+		"devices":          devices,
+		"dns_resolvers":    mapKeys(dnsResolvers),
+		"services":         services,
+		"speed":            speed,
+		"managed_switches": managedSwitches,
 	})
+}
+
+func (a *Agent) latestManagedSwitchTopology() []managedSwitchTopology {
+	rows, err := a.db.LatestAdvanced("snmp_topology", 200)
+	if err != nil {
+		return []managedSwitchTopology{}
+	}
+	latest := latestAdvancedByTarget(rows)
+	result := make([]managedSwitchTopology, 0, len(latest))
+	for _, row := range latest {
+		var details struct {
+			Host      string                      `json:"host"`
+			Neighbors []runner.LLDPNeighbor       `json:"neighbors"`
+			MACTable  []runner.SwitchPortLocation `json:"mac_table"`
+		}
+		if err := json.Unmarshal([]byte(row.Details), &details); err != nil {
+			continue
+		}
+		result = append(result, managedSwitchTopology{Host: firstNonEmpty(details.Host, row.Target), Success: row.Success, Summary: row.Summary, Timestamp: row.Timestamp, Neighbors: details.Neighbors, MACTable: details.MACTable})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Host < result[j].Host })
+	return result
+}
+
+func (a *Agent) attachManagedSwitchLocations(devices []storage.Device) {
+	type observedLocation struct {
+		host string
+		port runner.SwitchPortLocation
+		at   time.Time
+	}
+	byMAC := map[string]observedLocation{}
+	for _, managedSwitch := range a.latestManagedSwitchTopology() {
+		for _, location := range managedSwitch.MACTable {
+			mac := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(location.MAC), "-", ":"))
+			if mac == "" {
+				continue
+			}
+			if previous, ok := byMAC[mac]; !ok || managedSwitch.Timestamp.After(previous.at) {
+				byMAC[mac] = observedLocation{host: managedSwitch.Host, port: location, at: managedSwitch.Timestamp}
+			}
+		}
+	}
+	for i := range devices {
+		mac := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(devices[i].MAC), "-", ":"))
+		location, ok := byMAC[mac]
+		if !ok {
+			continue
+		}
+		devices[i].SwitchHost = location.host
+		devices[i].SwitchPort = location.port.BridgePort
+		devices[i].SwitchIfName = location.port.IfName
+		devices[i].VLAN = location.port.VLAN
+	}
 }
 
 func latestAdvancedByTarget(rows []storage.AdvancedResult) []storage.AdvancedResult {

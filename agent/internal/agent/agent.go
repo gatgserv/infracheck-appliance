@@ -36,6 +36,7 @@ type Agent struct {
 	speedtest     runner.SpeedtestRunner
 	advanced      runner.AdvancedRunner
 	iperf         *iperf.Manager
+	udpEcho       *udpEchoManager
 	started       time.Time
 	mu            sync.RWMutex
 	lastPing      []storage.PingResult
@@ -58,6 +59,7 @@ func New(cfg config.Config, db *storage.DB, logger *slog.Logger) (*Agent, error)
 		speedtest: runner.SpeedtestRunner{},
 		advanced:  runner.AdvancedRunner{},
 		iperf:     iperf.NewManager(iperf.DefaultPort),
+		udpEcho:   newUDPEchoManager(5202),
 		started:   time.Now().UTC(),
 	}, nil
 }
@@ -75,6 +77,7 @@ func (a *Agent) Start(ctx context.Context) {
 func (a *Agent) Router() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", a.redirectUI)
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	mux.HandleFunc("GET /config", a.redirectConfig)
 	mux.HandleFunc("GET /healthz", a.healthz)
 	mux.HandleFunc("GET /readyz", a.readyz)
@@ -99,9 +102,23 @@ func (a *Agent) Router() http.Handler {
 	mux.HandleFunc("GET /api/v1/iperf/status", a.maybeProtectReadFunc(a.iperfStatus))
 	mux.HandleFunc("POST /api/v1/iperf/server/start", a.requireAdmin(a.iperfStart))
 	mux.HandleFunc("POST /api/v1/iperf/server/stop", a.requireAdmin(a.iperfStop))
+	mux.HandleFunc("GET /api/v1/field/throughput/download", a.requireAdmin(a.fieldThroughputDownload))
+	mux.HandleFunc("POST /api/v1/field/throughput/upload", a.requireAdmin(a.fieldThroughputUpload))
+	mux.HandleFunc("POST /api/v1/field/udp/start", a.requireAdmin(a.fieldUDPStart))
+	mux.HandleFunc("POST /api/v1/field/udp/stop", a.requireAdmin(a.fieldUDPStop))
+	mux.HandleFunc("POST /api/v1/field/autotest", a.requireAdmin(a.fieldAutoTest))
+	mux.HandleFunc("POST /api/v1/diagnostics/path", a.requireAdmin(a.fieldProgressivePath))
+	mux.HandleFunc("POST /api/v1/diagnostics/dhcp-integrity", a.requireAdmin(a.fieldDHCPIntegrity))
+	mux.HandleFunc("POST /api/v1/diagnostics/dns-integrity", a.requireAdmin(a.fieldDNSIntegrity))
+	mux.HandleFunc("POST /api/v1/topology/snmp", a.requireAdmin(a.fieldSNMPTopology))
 	mux.HandleFunc("GET /api/v1/devices", a.maybeProtectReadFunc(a.devices))
 	mux.HandleFunc("GET /api/v1/devices/new", a.maybeProtectReadFunc(a.newDevices))
 	mux.HandleFunc("GET /api/v1/devices/missing", a.maybeProtectReadFunc(a.missingDevices))
+	mux.HandleFunc("GET /api/v1/devices/events", a.maybeProtectReadFunc(a.deviceEvents))
+	mux.HandleFunc("GET /api/v1/wifi/observations", a.maybeProtectReadFunc(a.wifiObservations))
+	mux.HandleFunc("POST /api/v1/wifi/observations", a.requireAdmin(a.uploadWiFiObservations))
+	mux.HandleFunc("GET /api/v1/devices/expectations", a.maybeProtectReadFunc(a.deviceExpectations))
+	mux.HandleFunc("PUT /api/v1/devices/{id}/expectation", a.requireAdmin(a.updateDeviceExpectation))
 	mux.HandleFunc("PUT /api/v1/devices/{id}", a.requireAdmin(a.updateDevice))
 	mux.HandleFunc("POST /api/v1/devices/{id}/known", a.requireAdmin(a.markDeviceKnown))
 	mux.HandleFunc("POST /api/v1/devices/known", a.requireAdmin(a.markAllDevicesKnown))
@@ -334,16 +351,20 @@ func (a *Agent) enrichDevices(ctx context.Context, devices []storage.Device) {
 			continue
 		}
 		result := enricher.Enrich(ctx, runner.IdentityTarget{IP: device.IP, MAC: device.MAC})
-		if result.Hostname == "" && result.Vendor == "" {
+		if result.Hostname == "" && result.Vendor == "" && len(result.Services) == 0 {
 			continue
 		}
 		source := identitySourceLabel(result.Sources)
 		if source == "" {
 			source = "identity-auto"
 		}
-		if _, err := a.db.UpdateDeviceIdentityByIP(a.cfg.Site.ID, device.IP, result.Hostname, result.Vendor, source); err != nil {
+		identified, err := a.db.UpdateDeviceIdentityByIP(a.cfg.Site.ID, device.IP, result.Hostname, result.Vendor, source)
+		if err != nil {
 			a.logger.Debug("device identity enrichment skipped", "error", err, "ip", device.IP)
 			continue
+		}
+		if len(result.Services) > 0 {
+			a.persistDeviceServices(identified, result.Services)
 		}
 		updated++
 	}
@@ -538,6 +559,8 @@ func (a *Agent) devices(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	devices = a.ensureDeviceIntelligence(devices)
+	a.attachManagedSwitchLocations(devices)
 	a.markDeviceInventoryState(devices)
 	writeJSON(w, http.StatusOK, map[string]any{"devices": devices})
 }
@@ -781,6 +804,7 @@ func (a *Agent) mobileSummary(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	devices = a.ensureDeviceIntelligence(devices)
 	newDevices, err := a.db.NewDevices(a.cfg.Site.ID, 24*time.Hour)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,6 +21,22 @@ func TestMaybeProtectReadAllowsPublicReads(t *testing.T) {
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected public read to pass, got %d", rec.Code)
+	}
+}
+
+func TestFieldThroughputDownloadUsesRequestedSize(t *testing.T) {
+	a := &Agent{}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/field/throughput/download?bytes=1048576", nil)
+	rec := httptest.NewRecorder()
+	a.fieldThroughputDownload(rec, req)
+	response := rec.Result()
+	defer response.Body.Close()
+	raw, err := io.ReadAll(response.Body)
+	if err != nil || len(raw) != 1048576 {
+		t.Fatalf("download bytes = %d, err = %v", len(raw), err)
+	}
+	if response.Header.Get("Content-Encoding") != "identity" {
+		t.Fatalf("expected identity encoding, got %q", response.Header.Get("Content-Encoding"))
 	}
 }
 

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -91,7 +92,8 @@ func (a *Agent) runAdvanced(parent context.Context, force bool) []storage.Advanc
 				if net.ParseIP(device.IP) != nil {
 					scan := a.advanced.PortScan(ctx, a.cfg.Site.ID, device, ports)
 					save(scan)
-					save(classifyDeviceResult(a.cfg.Site.ID, device, scan.Details))
+					device = a.persistDevicePortScan(device, scan)
+					save(classifyDeviceResult(a.cfg.Site.ID, device))
 				}
 			}
 		}
@@ -110,18 +112,8 @@ func (a *Agent) tlsDetailsDue(interval time.Duration) bool {
 	return time.Since(latest[0].Timestamp) >= interval
 }
 
-func classifyDeviceResult(siteID string, device storage.Device, openPortsJSON string) storage.AdvancedResult {
-	kind := "unknown"
-	switch {
-	case strings.Contains(openPortsJSON, "3389"):
-		kind = "windows_workstation_or_server"
-	case strings.Contains(openPortsJSON, "445"):
-		kind = "windows_or_nas"
-	case strings.Contains(openPortsJSON, "80") || strings.Contains(openPortsJSON, "443") || strings.Contains(openPortsJSON, "8080") || strings.Contains(openPortsJSON, "8443"):
-		kind = "network_device_or_web_service"
-	case strings.Contains(openPortsJSON, "22"):
-		kind = "linux_or_network_device"
-	}
+func classifyDeviceResult(siteID string, device storage.Device) storage.AdvancedResult {
+	details, _ := json.Marshal(map[string]any{"category": device.Category, "confidence": device.ClassificationConfidence, "evidence": device.ClassificationEvidence, "risk_flags": device.RiskFlags, "open_ports": json.RawMessage(device.OpenPorts), "classifier_version": device.ClassificationVersion})
 	return storage.AdvancedResult{
 		Timestamp:  time.Now().UTC(),
 		SiteID:     siteID,
@@ -130,8 +122,8 @@ func classifyDeviceResult(siteID string, device storage.Device, openPortsJSON st
 		Target:     device.IP,
 		Success:    true,
 		Severity:   "info",
-		Summary:    "Device classified as " + kind,
-		Details:    `{"class":"` + kind + `","open_ports":` + openPortsJSON + `}`,
+		Summary:    "Device classified as " + device.Category + " (" + strings.ToLower(device.ClassificationConfidence) + " confidence)",
+		Details:    string(details),
 	}
 }
 

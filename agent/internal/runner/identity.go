@@ -20,11 +20,12 @@ type IdentityTarget struct {
 }
 
 type IdentitySource struct {
-	Source   string `json:"source"`
-	Hostname string `json:"hostname,omitempty"`
-	Vendor   string `json:"vendor,omitempty"`
-	Status   string `json:"status"`
-	Error    string `json:"error,omitempty"`
+	Source   string   `json:"source"`
+	Hostname string   `json:"hostname,omitempty"`
+	Vendor   string   `json:"vendor,omitempty"`
+	Services []string `json:"services,omitempty"`
+	Status   string   `json:"status"`
+	Error    string   `json:"error,omitempty"`
 }
 
 type IdentityResult struct {
@@ -32,6 +33,7 @@ type IdentityResult struct {
 	MAC      string           `json:"mac,omitempty"`
 	Hostname string           `json:"hostname,omitempty"`
 	Vendor   string           `json:"vendor,omitempty"`
+	Services []string         `json:"services,omitempty"`
 	Sources  []IdentitySource `json:"sources"`
 }
 
@@ -58,6 +60,11 @@ func (e IdentityEnricher) Enrich(ctx context.Context, target IdentityTarget) Ide
 		}
 		if result.Vendor == "" && source.Vendor != "" {
 			result.Vendor = source.Vendor
+		}
+		for _, service := range source.Services {
+			if !containsString(result.Services, service) {
+				result.Services = append(result.Services, service)
+			}
 		}
 	}
 	return result
@@ -139,6 +146,7 @@ func fromMDNS(parent context.Context, ip string) IdentitySource {
 	ctx, cancel := context.WithTimeout(parent, 1000*time.Millisecond)
 	defer cancel()
 	services := []string{"_workstation._tcp", "_smb._tcp", "_ssh._tcp", "_http._tcp", "_ipp._tcp", "_airplay._tcp", "_googlecast._tcp"}
+	found := IdentitySource{Source: "mdns", Status: "not_found"}
 	for _, service := range services {
 		resolver, err := zeroconf.NewResolver(nil)
 		if err != nil {
@@ -153,17 +161,31 @@ func fromMDNS(parent context.Context, ip string) IdentitySource {
 		}
 		for entry := range entries {
 			if mdnsEntryHasIP(entry, ip) {
-				serviceCancel()
 				host := cleanHostname(entry.HostName)
 				if host == "" {
 					host = cleanHostname(entry.Instance)
 				}
-				return IdentitySource{Source: "mdns", Hostname: host, Status: "ok"}
+				if found.Hostname == "" {
+					found.Hostname = host
+				}
+				if !containsString(found.Services, service) {
+					found.Services = append(found.Services, service)
+				}
+				found.Status = "ok"
 			}
 		}
 		serviceCancel()
 	}
-	return IdentitySource{Source: "mdns", Status: "not_found"}
+	return found
+}
+
+func containsString(values []string, candidate string) bool {
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func mdnsEntryHasIP(entry *zeroconf.ServiceEntry, ip string) bool {

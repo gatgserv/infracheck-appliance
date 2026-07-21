@@ -38,5 +38,5 @@ COPY --from=build /out/infracheck-agent /usr/local/bin/infracheck-agent
 COPY config/config.example.yaml /etc/infracheck/config.yaml
 
 USER infracheck
-EXPOSE 8080 5201
+EXPOSE 8080 5201 5202/udp
 ENTRYPOINT ["/usr/local/bin/infracheck-agent"]

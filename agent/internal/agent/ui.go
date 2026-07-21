@@ -261,6 +261,10 @@ const uiHTML = `<!doctype html>
           <summary><span>Topology</span><span id="topologyDiagSummary" class="muted">-</span></summary>
           <div id="topologySummary" class="summary-grid"></div>
           <div class="scroll" style="max-height:220px"><table id="topologyDevices"></table></div>
+          <h4>Managed switch port locations</h4>
+          <div class="scroll" style="max-height:220px"><table id="topologySwitchPorts"></table></div>
+          <h4>LLDP neighbors</h4>
+          <div class="scroll" style="max-height:220px"><table id="topologyNeighbors"></table></div>
         </details>
       </div>
       <div class="panel span-6">
@@ -337,6 +341,15 @@ const uiHTML = `<!doctype html>
     <h2>LAN Inventory</h2>
     <section class="grid">
       <div class="panel span-12">
+        <div id="deviceIntelligenceSummary" class="summary-strip grid"></div>
+        <div class="row" style="margin-top:10px">
+          <input id="deviceSearch" class="inline-edit" style="max-width:360px" placeholder="Search IP, host, vendor, category, port, evidence">
+          <select id="deviceCategory"><option value="all">All categories</option></select>
+          <select id="deviceState"><option value="all">All states</option><option value="review">Needs review</option><option value="new">New</option><option value="missing">Missing</option><option value="risk">Attention flags</option></select>
+          <button id="exportDevicesCSV">Export CSV</button><button id="exportDevicesJSON">Export JSON</button>
+        </div>
+      </div>
+      <div class="panel span-12">
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
           <h3 style="margin:0">Devices</h3>
           <div class="row">
@@ -346,6 +359,8 @@ const uiHTML = `<!doctype html>
         </div>
         <div class="scroll"><table id="devices"></table></div>
       </div>
+      <div class="panel span-6"><h3>Recent device changes</h3><div class="scroll"><table id="deviceEvents"></table></div></div>
+      <div class="panel span-6"><h3>Imported Wi-Fi site observations</h3><p class="muted">Stored only after an explicit Android upload or authenticated controller/API import.</p><div class="scroll"><table id="wifiObservations"></table></div></div>
     </section>
 
     <h2>Additional Checks</h2>
@@ -396,6 +411,34 @@ const uiHTML = `<!doctype html>
             <h4>Refresh identity now</h4>
             <input id="toolIdentityIP" placeholder="device IP">
             <button id="runToolIdentity">Refresh identity now</button>
+          </div>
+          <div class="tool-box">
+            <h4>Site AutoTest</h4>
+            <select id="autoTestProfile"><option value="standard">Standard</option><option value="wifi">Wi-Fi</option><option value="voip">VoIP</option></select>
+            <button id="runAutoTest">Run coordinated checks</button>
+          </div>
+          <div class="tool-box">
+            <h4>Browser ↔ Appliance throughput</h4>
+            <p class="muted">Measures this browser's local path, independent of ISP speed.</p>
+            <button id="runLocalThroughput">Run 8 MB down/up</button>
+          </div>
+          <div class="tool-box">
+            <h4>Progressive path</h4>
+            <input id="fieldPathHost" placeholder="host/IP">
+            <select id="fieldPathProtocol"><option value="icmp">ICMP</option><option value="tcp">TCP/443</option><option value="udp">UDP/33434</option></select>
+            <button id="runFieldPath">Sample path + MTU</button>
+          </div>
+          <div class="tool-box">
+            <h4>DHCP / DNS integrity</h4>
+            <input id="fieldExpectedDHCP" placeholder="expected DHCP server (optional)">
+            <input id="fieldDNSDomain" placeholder="domain, e.g. example.com">
+            <button id="runDHCPIntegrity">Check DHCP</button><button id="runDNSIntegrity">Compare DNS</button>
+          </div>
+          <div class="tool-box">
+            <h4>SNMP / LLDP topology</h4>
+            <input id="fieldSNMPHost" placeholder="switch IP">
+            <input id="fieldSNMPCommunity" type="password" placeholder="v2c community (not stored)">
+            <button id="runSNMPTopology">Query LLDP neighbors</button>
           </div>
         </div>
         <p id="actionResult" class="muted"></p>
@@ -720,6 +763,8 @@ const uiHTML = `<!doctype html>
     window.alertDetails = [];
     window.showingAlertHistory = false;
     window.selectedAlertFingerprint = '';
+    window.deviceRows = [];
+    window.filteredDeviceRows = [];
     function safeJSON(v) { try { return typeof v === 'string' && v ? JSON.parse(v) : (v || {}); } catch { return {}; } }
     function selectedAlertPriorities() {
       return [...document.querySelectorAll('.alert-priority:checked')].map(input => input.value);
@@ -1238,14 +1283,16 @@ const uiHTML = `<!doctype html>
       };
     }
     async function load() {
-      const [info, health, alerts, devices, ping, dnsRows, httpRows, speed, cfg, advanced, reports, dnsDiag, traceDiag, portDiag, topology] = await Promise.all([
+      const [info, health, alerts, devices, ping, dnsRows, httpRows, speed, cfg, advanced, reports, dnsDiag, traceDiag, portDiag, topology, deviceEvents, wifiObservations] = await Promise.all([
         get('/api/v1/info'), get('/api/v1/health'), get('/api/v1/alerts/unified' + (window.showingAlertHistory ? '?history=1&include_ack=1' : '?include_ack=1')).catch(() => ({alerts:[]})),
         get('/api/v1/devices'), get('/api/v1/tests/ping/latest'), get('/api/v1/tests/dns/latest'), get('/api/v1/tests/http/latest'),
         get('/api/v1/tests/speed/latest'), get('/api/v1/config'), get('/api/v1/tests/advanced/latest'), get('/api/v1/reports').catch(() => ({reports:[]})),
         get('/api/v1/diagnostics/dns').catch(() => ({results:[]})),
         get('/api/v1/diagnostics/trace').catch(() => ({results:[]})),
         get('/api/v1/diagnostics/ports').catch(() => ({results:[]})),
-        get('/api/v1/topology').catch(() => ({}))
+        get('/api/v1/topology').catch(() => ({})),
+        get('/api/v1/devices/events').catch(() => ({events:[]})),
+        get('/api/v1/wifi/observations').catch(() => ({observations:[]}))
       ]);
       $('site').textContent = info.site.name + ' / ' + info.site.id;
       $('overall').textContent = health.overall_health_score;
@@ -1272,10 +1319,9 @@ const uiHTML = `<!doctype html>
       renderDNSDiagnostics(dnsDiag.results || []);
       renderTraceDiagnostics(traceDiag.results || []);
       renderPortHistory(portDiag.results || []);
-      rows('devices', ['IP','MAC','Vendor','Hostname','Comment','Missing alert','Source','Seen','First seen','Known','Last seen','Action'], devices.devices || [], d => {
-        const knownButton = d.new ? '<button class="primary" onclick="markDeviceKnown('+d.id+')">Mark known</button>' : '<span class="badge ok">known</span>';
-        return '<tr><td>'+esc(d.ip)+'</td><td>'+esc(d.mac)+'</td><td>'+esc(d.vendor)+'</td><td><input class="inline-edit" id="host-'+d.id+'" value="'+esc(d.hostname)+'" data-original="'+esc(d.hostname)+'" oninput="markDeviceDirty('+d.id+')" placeholder="label host"></td><td><input class="inline-edit" id="notes-'+d.id+'" value="'+esc(d.notes)+'" data-original="'+esc(d.notes)+'" oninput="markDeviceDirty('+d.id+')" placeholder="comment"></td><td><label class="check-cell"><input type="checkbox" id="monitor-'+d.id+'" '+(d.monitor_missing ? 'checked' : '')+' data-original="'+(d.monitor_missing ? '1' : '0')+'" onchange="markDeviceDirty('+d.id+')"> Alert if missing</label></td><td><span class="badge">'+esc(d.source)+'</span></td><td>'+d.seen_count+'</td><td>'+ts(d.first_seen)+'</td><td>'+knownButton+'</td><td>'+ts(d.last_seen)+'</td><td><div class="row"><button id="device-save-'+d.id+'" onclick="saveDevice('+d.id+')" disabled>Save</button></div></td></tr>';
-      });
+      window.deviceRows = devices.devices || [];
+      populateDeviceCategories(); renderDeviceIntelligence();
+      renderDeviceEvents(deviceEvents.events || []); renderWiFiObservations(wifiObservations.observations || []);
       const lat = pingItems.slice().reverse().map(p => p.latency_ms), loss = pingItems.slice().reverse().map(p => p.loss_percent), durations = httpItems.slice().reverse().map(h => h.duration_ms);
       setStats('latency', lat, ' ms'); setStats('loss', loss, '%'); setStats('http', durations, ' ms');
       spark('latency', lat, '#0969da', ' ms'); spark('loss', loss, '#bf8700', '%'); spark('httpDuration', durations, '#17803d', ' ms');
@@ -1622,21 +1668,79 @@ const uiHTML = `<!doctype html>
         (evidence.length ? '<ul>'+evidence.map(e => '<li>'+esc(e)+'</li>').join('')+'</ul>' : '<p class="muted">No current issue evidence.</p>');
       $('alertModal').style.display = 'flex';
     }
+    function populateDeviceCategories() {
+      const select = $('deviceCategory'), current = select.value || 'all';
+      const categories = [...new Set(window.deviceRows.map(d => d.category || 'Unclassified device'))].sort();
+      select.innerHTML = '<option value="all">All categories</option>'+categories.map(v => '<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+      select.value = categories.includes(current) ? current : 'all';
+    }
+    function deviceNeedsReview(d) {
+      return !!(d.new || d.missing || (d.risk_flags || []).length || !d.category || d.category === 'Unclassified device' || d.classification_confidence === 'Low');
+    }
+    function filteredDevices() {
+      const query = String($('deviceSearch').value || '').trim().toLowerCase();
+      const category = $('deviceCategory').value, state = $('deviceState').value;
+      return window.deviceRows.filter(d => {
+        if (category !== 'all' && (d.category || 'Unclassified device') !== category) return false;
+        if (state === 'review' && !deviceNeedsReview(d)) return false;
+        if (state === 'new' && !d.new) return false;
+        if (state === 'missing' && !d.missing) return false;
+        if (state === 'risk' && !(d.risk_flags || []).length) return false;
+        const searchable = [d.ip,d.mac,d.vendor,d.hostname,d.notes,d.source,d.open_ports,d.services,d.category,d.classification_confidence,d.switch_host,d.switch_port,d.switch_if_name,d.vlan,...(d.classification_evidence||[]),...(d.risk_flags||[])].join(' ').toLowerCase();
+        return !query || searchable.includes(query);
+      });
+    }
+    function renderDeviceIntelligence() {
+      const all=window.deviceRows, filtered=filteredDevices(); window.filteredDeviceRows=filtered;
+      const classified=all.filter(d => d.category && d.category !== 'Unclassified device').length;
+      const risk=all.filter(d => (d.risk_flags||[]).length).length, review=all.filter(deviceNeedsReview).length;
+      $('deviceIntelligenceSummary').innerHTML=[['Devices',all.length,'info'],['Classified',classified,'ok'],['Needs review',review,review?'warning':'ok'],['Attention flags',risk,risk?'warning':'ok'],['Showing',filtered.length,'info']].map(x => '<div class="panel"><div class="muted">'+x[0]+'</div><div class="stat '+x[2]+'">'+x[1]+'</div></div>').join('');
+      rows('devices',['State','Device','Category','Confidence','Ports / services','Evidence / attention','Label / comment','Missing alert','Last seen','Actions'],filtered,d => {
+        const state=d.missing?'missing':(d.new?'new':'known'), knownButton=d.new?'<button class="primary" onclick="markDeviceKnown('+d.id+')">Mark known</button>':'';
+        const flags=(d.risk_flags||[]).map(v=>'<span class="badge warning">'+esc(v)+'</span>').join(' ');
+        const auth=d.expectation?.authorization||'unbaselined';
+        const location=d.switch_host?(d.switch_host+' / '+(d.switch_if_name||d.switch_port||'?')+(d.vlan?' · VLAN '+d.vlan:'')):'location unknown';
+        return '<tr><td><span class="badge '+(auth==='blocked'?'critical':(d.missing?'critical':(d.new||auth==='review'?'warning':'ok')))+'">'+state+'</span><br><span class="muted">'+esc(auth)+'</span></td><td><strong>'+esc(d.hostname||d.ip)+'</strong><br><span class="muted">'+esc(d.ip)+' · '+esc(d.mac)+' · '+esc(d.vendor)+'</span><br><span class="muted">'+esc(location)+'</span></td><td>'+esc(d.category||'Unclassified device')+'</td><td>'+esc(d.classification_confidence||'Low')+'<br><span class="muted">'+esc(d.classification_version||'-')+'</span></td><td>'+esc(d.open_ports||'-')+'<br><span class="muted">'+esc(d.services||'-')+'</span></td><td>'+esc((d.classification_evidence||[]).join('; ')||'-')+'<br>'+flags+'</td><td><input class="inline-edit" id="host-'+d.id+'" value="'+esc(d.hostname)+'" data-original="'+esc(d.hostname)+'" oninput="markDeviceDirty('+d.id+')" placeholder="label"><input class="inline-edit" id="notes-'+d.id+'" value="'+esc(d.notes)+'" data-original="'+esc(d.notes)+'" oninput="markDeviceDirty('+d.id+')" placeholder="owner, location, expected role"></td><td><label class="check-cell"><input type="checkbox" id="monitor-'+d.id+'" '+(d.monitor_missing?'checked':'')+' data-original="'+(d.monitor_missing?'1':'0')+'" onchange="markDeviceDirty('+d.id+')"> Alert</label></td><td>'+ts(d.last_seen)+'<br><span class="muted">ports '+ts(d.ports_observed_at)+'</span></td><td><div class="row"><button id="device-save-'+d.id+'" onclick="saveDevice('+d.id+')" disabled>Save</button><button onclick="editDeviceBaseline('+d.id+')">Baseline</button><button onclick="showDeviceDetails('+d.id+')">Details</button>'+knownButton+'</div></td></tr>';
+      });
+    }
+    function showDeviceDetails(id) {
+      const d=window.deviceRows.find(row=>row.id===id); if(!d)return;
+      window.selectedAlertFingerprint=''; setAlertModalActions(false); $('alertModalTitle').textContent=(d.hostname||d.ip)+' device intelligence';
+      const ex=d.expectation||{};
+      $('alertModalBody').innerHTML='<p><strong>Category:</strong> '+esc(d.category||'Unclassified device')+' · <strong>Confidence:</strong> '+esc(d.classification_confidence||'Low')+'</p><p><strong>Address:</strong> '+esc(d.ip)+' / '+esc(d.mac)+'</p><p><strong>Vendor:</strong> '+esc(d.vendor||'-')+' · <strong>Sources:</strong> '+esc(d.source||'-')+'</p><p><strong>Observed location:</strong> '+esc(d.switch_host||'unknown')+' / '+esc(d.switch_if_name||d.switch_port||'unknown')+' · VLAN '+esc(d.vlan||'unknown')+'</p><p><strong>Ports:</strong> '+esc(d.open_ports||'-')+' · <strong>Services:</strong> '+esc(d.services||'-')+'</p><h3>Expected state</h3><p><strong>Authorization:</strong> '+esc(ex.authorization||'not set')+' · <strong>IP:</strong> '+esc(ex.expected_ip||'any')+' · <strong>Category:</strong> '+esc(ex.expected_category||'any')+'</p><p><strong>Ports:</strong> '+esc((ex.expected_ports||[]).join(',')||'any')+' · <strong>Services:</strong> '+esc((ex.expected_services||[]).join(',')||'any')+'</p><p><strong>Expected location:</strong> '+esc(ex.expected_switch||'any switch')+' / '+esc(ex.expected_port||'any port')+' · VLAN '+esc(ex.expected_vlan||'any')+'</p><h3>Classification evidence</h3><ul>'+((d.classification_evidence||[]).map(v=>'<li>'+esc(v)+'</li>').join('')||'<li>No strong role evidence yet</li>')+'</ul><h3>Attention flags</h3><ul>'+((d.risk_flags||[]).map(v=>'<li class="warning">'+esc(v)+'</li>').join('')||'<li>None</li>')+'</ul><p class="muted">Classifier '+esc(d.classification_version||'-')+' · classified '+esc(ts(d.classified_at))+' · first seen '+esc(ts(d.first_seen))+'</p>';
+      $('alertModal').style.display='flex';
+    }
+    function renderDeviceEvents(items) {
+      rows('deviceEvents',['When','Change','Device','Before → after'],items.slice(0,80),e=>'<tr><td>'+ts(e.timestamp)+'</td><td><span class="badge '+esc(e.severity||'info')+'">'+esc(e.type)+'</span><br>'+esc(e.summary)+'</td><td>#'+esc(e.device_id)+'</td><td>'+esc(e.before||'-')+' → '+esc(e.after||'-')+'</td></tr>');
+    }
+    function renderWiFiObservations(items) {
+      rows('wifiObservations',['SSID / BSSID','RF','Signal','Security','Source','Last seen'],items.slice(0,120),r=>'<tr><td><strong>'+esc(r.ssid||'(hidden)')+'</strong><br><span class="muted">'+esc(r.bssid)+' · '+esc(r.oui||'-')+'</span></td><td>'+esc(r.band||'-')+' · ch '+esc(r.channel)+'</td><td class="'+(Number(r.rssi_dbm)<-72?'warning':'ok')+'">'+esc(r.rssi_dbm)+' dBm</td><td>'+esc(r.security||'-')+(r.connected?' <span class="badge ok">connected</span>':'')+'</td><td><span class="badge">'+esc(r.source||'api')+'</span></td><td>'+ts(r.last_seen)+'</td></tr>');
+    }
+    function exportDeviceRows(format) {
+      const data=window.filteredDeviceRows||[]; let body,mime;
+      if(format==='json'){body=JSON.stringify(data,null,2);mime='application/json'} else {const cols=['ip','mac','vendor','hostname','category','classification_confidence','open_ports','services','risk_flags','source','first_seen','last_seen']; const csv=v=>'"'+String(Array.isArray(v)?v.join('; '):(v??'')).replaceAll('"','""')+'"'; body=cols.join(',')+'\n'+data.map(d=>cols.map(c=>csv(d[c])).join(',')).join('\n');mime='text/csv'}
+      const blob=new Blob([body],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='infracheck-devices.'+format;a.click();URL.revokeObjectURL(url);
+    }
     function renderTopology(topology) {
       const devices = topology.devices || [];
       const services = topology.services || {};
       const dns = topology.dns_resolvers || [];
-      $('topologyDiagSummary').textContent = (topology.gateway || '-') + ' · ' + devices.length + ' devices · ' + dns.length + ' DNS';
+      const switches = topology.managed_switches || [], locations=switches.flatMap(s=>(s.mac_table||[]).map(p=>({...p,switch_host:s.host,timestamp:s.timestamp}))), neighbors=switches.flatMap(s=>(s.neighbors||[]).map(n=>({...n,switch_host:s.host,timestamp:s.timestamp})));
+      $('topologyDiagSummary').textContent = (topology.gateway || '-') + ' · ' + devices.length + ' devices · ' + switches.length + ' switches · ' + locations.length + ' port locations';
       $('topologySummary').innerHTML = [
         '<div class="mini"><span class="muted">Gateway</span><strong>'+esc(topology.gateway || '-')+'</strong></div>',
         '<div class="mini"><span class="muted">Devices</span><strong>'+esc(devices.length)+'</strong></div>',
         '<div class="mini"><span class="muted">DNS resolvers</span><strong>'+esc(dns.length)+'</strong></div>',
-        '<div class="mini"><span class="muted">Services</span><strong>'+esc(Object.keys(services).length)+'</strong></div>'
+        '<div class="mini"><span class="muted">Services</span><strong>'+esc(Object.keys(services).length)+'</strong></div>',
+        '<div class="mini"><span class="muted">Managed switches</span><strong>'+esc(switches.length)+'</strong></div>',
+        '<div class="mini"><span class="muted">MAC locations</span><strong>'+esc(locations.length)+'</strong></div>'
       ].join('');
       rows('topologyDevices', ['Role','Name/IP','MAC','Vendor','Source'], devices.slice(0, 24), d => {
-        const role = d.ip === topology.gateway ? 'gateway' : (d.open_ports ? 'service host' : 'client');
+        const role = d.ip === topology.gateway ? 'Gateway' : (d.category || (d.open_ports ? 'Service host' : 'Client device'));
         return '<tr><td><span class="badge">'+esc(role)+'</span></td><td>'+esc(d.hostname || d.ip)+'</td><td>'+esc(d.mac)+'</td><td>'+esc(d.vendor)+'</td><td>'+esc(d.source)+'</td></tr>';
       });
+      rows('topologySwitchPorts',['Switch','MAC','VLAN','Interface','Bridge / ifIndex','Observed'],locations.slice(0,200),p=>'<tr><td>'+esc(p.switch_host)+'</td><td>'+esc(p.mac)+'</td><td>'+esc(p.vlan||'-')+'</td><td><strong>'+esc(p.if_name||'-')+'</strong></td><td>'+esc(p.bridge_port||'-')+' / '+esc(p.if_index||'-')+'</td><td>'+ts(p.timestamp)+'</td></tr>');
+      rows('topologyNeighbors',['Switch','Local port','Remote system','Remote port','Observed'],neighbors.slice(0,100),n=>'<tr><td>'+esc(n.switch_host)+'</td><td>'+esc(n.local_index||'-')+'</td><td>'+esc(n.remote_name||'-')+'</td><td>'+esc(n.remote_port||'-')+'</td><td>'+ts(n.timestamp)+'</td></tr>');
     }
     function renderDNSDiagnostics(items) {
       const total = items.length;
@@ -1943,6 +2047,24 @@ const uiHTML = `<!doctype html>
         $('actionResult').innerHTML = '<span class="critical">' + esc('Device save failed: ' + e.message) + '</span>';
       }
     }
+    async function editDeviceBaseline(id) {
+      const d=window.deviceRows.find(row=>row.id===id); if(!d || !(await ensureAdminToken()))return;
+      const ex=d.expectation||{};
+      const authorization=prompt('Authorization: authorized, review, or blocked', ex.authorization||'authorized'); if(authorization===null)return;
+      const category=prompt('Expected category (blank = any)', ex.expected_category||d.category||''); if(category===null)return;
+      const ip=prompt('Expected IP (blank = any)', ex.expected_ip||d.ip||''); if(ip===null)return;
+      const ports=prompt('Expected TCP ports, comma separated (blank = any)', (ex.expected_ports||[]).join(',')); if(ports===null)return;
+      const services=prompt('Expected service names, comma separated (blank = any)', (ex.expected_services||[]).join(',')); if(services===null)return;
+      const expectedSwitch=prompt('Expected switch IP/name (blank = any)', ex.expected_switch||d.switch_host||''); if(expectedSwitch===null)return;
+      const expectedPort=prompt('Expected switch interface or bridge port (blank = any)', ex.expected_port||d.switch_if_name||d.switch_port||''); if(expectedPort===null)return;
+      const expectedVLAN=prompt('Expected VLAN (blank = any)', ex.expected_vlan||d.vlan||''); if(expectedVLAN===null)return;
+      const maintenanceHours=prompt('Maintenance window hours from now (0 = none)', '0'); if(maintenanceHours===null)return;
+      const hours=Math.max(0,Number(maintenanceHours)||0), maintenance=hours?new Date(Date.now()+hours*3600000).toISOString():null;
+      try {
+        await withAdminRetry(() => put('/api/v1/devices/'+id+'/expectation',{authorization:authorization.trim().toLowerCase(),expected_category:category.trim().toLowerCase(),expected_ip:ip.trim(),expected_ports:parsePorts(ports),expected_services:services.split(',').map(v=>v.trim()).filter(Boolean),expected_switch:expectedSwitch.trim(),expected_port:expectedPort.trim(),expected_vlan:expectedVLAN.trim(),maintenance_until:maintenance}), 'save expected state');
+        $('actionResult').textContent='Expected state baseline saved for '+(d.hostname||d.ip); await load();
+      } catch(e) { $('actionResult').innerHTML='<span class="critical">'+esc('Baseline save failed: '+e.message)+'</span>'; }
+    }
     async function markDeviceKnown(id) {
       if (!(await ensureAdminToken())) return;
       try {
@@ -1979,6 +2101,17 @@ const uiHTML = `<!doctype html>
       $('actionResult').textContent = label + '...';
       try { const data = await withAdminRetry(fn, label); $('actionResult').textContent = summarizeAction(label, data); await load(); }
       catch (e) { $('actionResult').innerHTML = '<span class="critical">' + esc(label + ' failed: ' + e.message) + '</span>'; }
+    }
+    async function runLocalThroughput() {
+      if (!(await ensureAdminToken())) return;
+      $('actionResult').textContent='Local throughput...';
+      try {
+        let started=performance.now(), response=await fetch('/api/v1/field/throughput/download?bytes=8388608',{headers:auth()});
+        if(!response.ok)throw requestError(response,'throughput download'); const download=await response.arrayBuffer(), downSeconds=Math.max(.001,(performance.now()-started)/1000);
+        const upload=new Uint8Array(8388608); started=performance.now(); response=await fetch('/api/v1/field/throughput/upload',{method:'POST',headers:{...auth(),'Content-Type':'application/octet-stream'},body:upload});
+        if(!response.ok)throw requestError(response,'throughput upload'); await response.json(); const upSeconds=Math.max(.001,(performance.now()-started)/1000);
+        $('actionResult').textContent='Local throughput: '+(download.byteLength*8/downSeconds/1000000).toFixed(1)+' Mbps down / '+(upload.byteLength*8/upSeconds/1000000).toFixed(1)+' Mbps up';
+      } catch(e) { $('actionResult').innerHTML='<span class="critical">'+esc('Local throughput failed: '+e.message)+'</span>'; }
     }
     async function exportCurrentPDF() {
       if (!(await ensureAdminToken())) {
@@ -2085,6 +2218,11 @@ const uiHTML = `<!doctype html>
     $('clearAlert').onclick = () => closeAlertFingerprint(window.selectedAlertFingerprint);
     document.querySelectorAll('.alert-priority').forEach(input => input.onchange = renderAlerts);
     $('markAllKnown').onclick = markAllDevicesKnown;
+    $('deviceSearch').oninput = renderDeviceIntelligence;
+    $('deviceCategory').onchange = renderDeviceIntelligence;
+    $('deviceState').onchange = renderDeviceIntelligence;
+    $('exportDevicesCSV').onclick = () => exportDeviceRows('csv');
+    $('exportDevicesJSON').onclick = () => exportDeviceRows('json');
     $('runDiscovery').onclick = () => action('Discovery', () => post('/api/v1/discovery/run'));
     $('runPing').onclick = () => action('Ping', () => post('/api/v1/tests/ping/run'));
     $('runHTTP').onclick = () => action('HTTP', () => post('/api/v1/tests/http/run'));
@@ -2095,6 +2233,12 @@ const uiHTML = `<!doctype html>
     $('runToolTrace').onclick = () => action('Trace path', () => postJSON('/api/v1/tools/trace', {host:$('toolTraceHost').value}));
     $('runToolPortScan').onclick = () => action('Port scan', () => postJSON('/api/v1/tools/port-scan', {host:$('toolPortHost').value, ports:parsePorts($('toolPortList').value)}));
     $('runToolIdentity').onclick = () => action('Device identity', () => postJSON('/api/v1/tools/device-enrich', {ip:$('toolIdentityIP').value}));
+    $('runAutoTest').onclick = () => action('Site AutoTest', () => postJSON('/api/v1/field/autotest', {profile:$('autoTestProfile').value}));
+    $('runLocalThroughput').onclick = runLocalThroughput;
+    $('runFieldPath').onclick = () => { const protocol=$('fieldPathProtocol').value; action('Progressive path', () => postJSON('/api/v1/diagnostics/path', {host:$('fieldPathHost').value,protocol,samples:3,max_hops:24,port:protocol==='tcp'?443:(protocol==='udp'?33434:0),discover_mtu:true})); };
+    $('runDHCPIntegrity').onclick = () => action('DHCP integrity', () => postJSON('/api/v1/diagnostics/dhcp-integrity', {expected_server:$('fieldExpectedDHCP').value}));
+    $('runDNSIntegrity').onclick = () => action('DNS integrity', () => postJSON('/api/v1/diagnostics/dns-integrity', {domain:$('fieldDNSDomain').value||'example.com'}));
+    $('runSNMPTopology').onclick = () => action('SNMP / LLDP topology', () => postJSON('/api/v1/topology/snmp', {host:$('fieldSNMPHost').value,community:$('fieldSNMPCommunity').value}));
     $('exportPDF').onclick = exportCurrentPDF;
     $('cleanupReports').onclick = cleanupReports;
     $('reportType').onchange = updateReportControls;

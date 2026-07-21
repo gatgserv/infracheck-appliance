@@ -2418,8 +2418,8 @@ var reportTemplate = template.Must(template.New("report").Funcs(template.FuncMap
 
   <h2>LAN Inventory</h2>
   <p>Known devices: {{len .Devices}}. Unreviewed new devices: {{len .NewDevices}}. Missing in last 24h: {{len .MissingDevices}}.</p>
-  <table><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Hostname</th><th>Source</th><th>First seen</th><th>Last seen</th></tr>
-  {{range .Devices}}<tr><td>{{.IP}}</td><td>{{.MAC}}</td><td>{{.Vendor}}</td><td>{{.Hostname}}</td><td>{{.Source}}</td><td>{{ts .FirstSeen}}</td><td>{{ts .LastSeen}}</td></tr>{{end}}
+  <table><tr><th>IP</th><th>MAC</th><th>Vendor</th><th>Hostname</th><th>Category</th><th>Confidence</th><th>Ports / services</th><th>Attention</th><th>Last seen</th></tr>
+  {{range .Devices}}<tr><td>{{.IP}}</td><td>{{.MAC}}</td><td>{{.Vendor}}</td><td>{{.Hostname}}</td><td>{{.Category}}</td><td>{{.ClassificationConfidence}}</td><td>{{.OpenPorts}} {{.Services}}</td><td>{{range .RiskFlags}}{{.}}; {{end}}</td><td>{{ts .LastSeen}}</td></tr>{{end}}
   </table>
 </body>
 </html>`))

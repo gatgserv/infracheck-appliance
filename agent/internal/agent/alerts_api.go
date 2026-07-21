@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -123,7 +124,47 @@ func (a *Agent) currentAlertRecords(ctx context.Context) ([]storage.AlertRecord,
 	if err == nil {
 		records = append(records, prometheus...)
 	}
+	records = append(records, a.deviceIntelligenceAlertRecords()...)
+	devices, deviceErr := a.db.Devices(a.cfg.Site.ID)
+	if deviceErr == nil {
+		a.attachManagedSwitchLocations(devices)
+		records = append(records, expectationAlertRecords(devices)...)
+	}
 	return dedupeAlertRecords(records), nil
+}
+
+func (a *Agent) deviceIntelligenceAlertRecords() []storage.AlertRecord {
+	devices, err := a.db.Devices(a.cfg.Site.ID)
+	if err != nil {
+		return nil
+	}
+	devices = a.ensureDeviceIntelligence(devices)
+	records := []storage.AlertRecord{}
+	for _, device := range devices {
+		if len(device.RiskFlags) == 0 {
+			continue
+		}
+		name := firstNonEmpty(device.Hostname, device.IP, device.MAC)
+		labels, _ := json.Marshal(map[string]string{"category": "inventory", "device_id": strconv.FormatInt(device.ID, 10), "target": device.IP})
+		record := storage.AlertRecord{Source: "device-intelligence", Severity: "warning", State: "active", Category: "inventory", Title: "Device exposure needs review: " + name, Summary: strings.Join(device.RiskFlags, "; "), Recommendation: "Confirm these services are expected for the device role, restrict access where appropriate, or document the accepted exposure.", Evidence: append([]string{"device: " + name, "category: " + device.Category}, device.RiskFlags...), Labels: string(labels)}
+		record.Fingerprint = alertFingerprint(record)
+		records = append(records, record)
+	}
+	events, err := a.db.DeviceEvents(a.cfg.Site.ID, 300)
+	if err != nil {
+		return records
+	}
+	cutoff := time.Now().UTC().Add(-24 * time.Hour)
+	for _, event := range events {
+		if event.Type != "ports_changed" || event.Timestamp.Before(cutoff) || event.Before == "" {
+			continue
+		}
+		labels, _ := json.Marshal(map[string]string{"category": "inventory", "device_id": strconv.FormatInt(event.DeviceID, 10), "target": strconv.FormatInt(event.DeviceID, 10)})
+		record := storage.AlertRecord{Source: "device-intelligence", Severity: "info", State: "active", Category: "inventory", Title: "Observed ports changed on device", Summary: event.Summary, Recommendation: "Review the device timeline and confirm the newly observed service set is expected.", Evidence: []string{"device id: " + strconv.FormatInt(event.DeviceID, 10), "before: " + event.Before, "after: " + event.After}, Labels: string(labels)}
+		record.Fingerprint = alertFingerprint(record)
+		records = append(records, record)
+	}
+	return records
 }
 
 func (a *Agent) prometheusAlertRecords(ctx context.Context) ([]storage.AlertRecord, error) {
