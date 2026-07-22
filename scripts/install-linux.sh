@@ -22,6 +22,21 @@ random_token() {
   tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48
 }
 
+detect_network_dns() {
+  if command -v resolvectl >/dev/null 2>&1; then
+    resolvectl dns 2>/dev/null | awk '
+      {
+        for (i = 3; i <= NF; i++) {
+          if ($i !~ /^127\./ && $i != "::1" && $i != "127.0.0.53") {
+            print $i
+            exit
+          }
+        }
+      }'
+  fi
+  awk '/^nameserver[[:space:]]+/ && $2 !~ /^127\./ && $2 != "::1" { print $2; exit }' /etc/resolv.conf 2>/dev/null || true
+}
+
 if [ ! -f .env ]; then
   admin_token="$(random_token)"
   read_token="$(random_token)"
@@ -34,6 +49,20 @@ if [ ! -f .env ]; then
   echo "created .env with generated tokens"
 else
   echo "kept existing .env"
+fi
+
+if ! grep -q '^INFRACHECK_NETWORK_DNS=.' .env; then
+  network_dns="$(detect_network_dns | head -n 1)"
+  if [ -n "$network_dns" ]; then
+    if grep -q '^INFRACHECK_NETWORK_DNS=' .env; then
+      sed -i "s#^INFRACHECK_NETWORK_DNS=.*#INFRACHECK_NETWORK_DNS=$network_dns#" .env
+    else
+      printf '\nINFRACHECK_NETWORK_DNS=%s\n' "$network_dns" >>.env
+    fi
+    echo "configured network DNS resolver: $network_dns"
+  else
+    echo "warning: network DNS could not be detected; set INFRACHECK_NETWORK_DNS in .env" >&2
+  fi
 fi
 
 if [ ! -f config/config.yaml ]; then

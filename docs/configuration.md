@@ -11,11 +11,14 @@ Important environment overrides:
 - `INFRACHECK_READ_TOKEN`
 - `INFRACHECK_PROTECT_METRICS`
 - `INFRACHECK_ALLOW_PUBLIC_READS`
+- `INFRACHECK_NETWORK_DNS` (the DNS server learned from the site network; `system`/`auto` checks use this address instead of Docker's internal DNS proxy)
 - `INFRACHECK_STORAGE_PATH`
 - `INFRACHECK_SITE_ID`
 - `INFRACHECK_SITE_NAME`
 - `INFRACHECK_SITE_LOCATION`
 - `INFRACHECK_PORT`
+
+The Linux installer detects the active network DNS server and writes it to `INFRACHECK_NETWORK_DNS`. For manual or Docker Desktop deployments, set this value explicitly to the DNS server supplied by DHCP or the router, for example `INFRACHECK_NETWORK_DNS=192.168.1.1`. Explicit public resolver targets such as `1.1.1.1` and `8.8.8.8` remain unchanged for comparison.
 
 Reports are written to `reports.path`, defaulting to `/var/lib/infracheck/reports`.
 

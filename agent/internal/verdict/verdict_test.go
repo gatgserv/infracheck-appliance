@@ -42,6 +42,26 @@ func TestEvaluateLocalDNSProblem(t *testing.T) {
 	assertVerdict(t, health, "local_dns_problem")
 }
 
+func TestEvaluateUsesLatestSystemResolverAddress(t *testing.T) {
+	now := time.Now()
+	health := Evaluate(Input{
+		Now: now,
+		DNS: []storage.DNSResult{
+			{Timestamp: now.Add(-time.Minute), ResolverName: "system", ResolverAddress: "192.168.65.7", Domain: "example.com", RecordType: "AAAA", Success: false},
+			{Timestamp: now, ResolverName: "system", ResolverAddress: "192.168.1.1", Domain: "example.com", RecordType: "AAAA", Success: true},
+			{Timestamp: now, ResolverName: "cloudflare", ResolverAddress: "1.1.1.1", Domain: "example.com", RecordType: "AAAA", Success: true},
+		},
+	})
+	if health.DNSScore != 100 {
+		t.Fatalf("DNS score = %d, expected 100", health.DNSScore)
+	}
+	for _, item := range health.Verdicts {
+		if item.Code == "local_dns_problem" {
+			t.Fatal("old system resolver result must not remain active")
+		}
+	}
+}
+
 func TestEvaluateUpstreamPacketLoss(t *testing.T) {
 	now := time.Now()
 	health := Evaluate(Input{

@@ -364,7 +364,7 @@ func latestPerTarget(results []storage.PingResult) []storage.PingResult {
 func latestDNSPerKey(results []storage.DNSResult) []storage.DNSResult {
 	seen := map[string]storage.DNSResult{}
 	for _, result := range results {
-		key := result.ResolverName + "|" + result.ResolverAddress + "|" + result.Domain + "|" + result.RecordType
+		key := result.ResolverName + "|" + result.Domain + "|" + result.RecordType
 		if existing, ok := seen[key]; !ok || result.Timestamp.After(existing.Timestamp) {
 			seen[key] = result
 		}

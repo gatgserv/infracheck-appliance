@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -29,9 +30,11 @@ func (r DNSRunner) Run(ctx context.Context, target DNSTarget) storage.DNSResult 
 		RecordType:      strings.ToUpper(target.RecordType),
 	}
 
+	resolverAddress := effectiveResolverAddress(target.ResolverAddress)
+	result.ResolverAddress = resolverAddress
 	resolver := systemResolver()
-	if target.ResolverAddress != "" && target.ResolverAddress != "auto" {
-		resolver = resolverForAddress(target.ResolverAddress)
+	if resolverAddress != "" && resolverAddress != "auto" {
+		resolver = resolverForAddress(resolverAddress)
 	}
 
 	start := time.Now()
@@ -44,6 +47,16 @@ func (r DNSRunner) Run(ctx context.Context, target DNSTarget) storage.DNSResult 
 	result.Success = true
 	result.AnswerCount = answers
 	return result
+}
+
+func effectiveResolverAddress(configured string) string {
+	configured = strings.TrimSpace(configured)
+	if configured == "" || configured == "auto" {
+		if networkDNS := strings.TrimSpace(os.Getenv("INFRACHECK_NETWORK_DNS")); networkDNS != "" {
+			return networkDNS
+		}
+	}
+	return configured
 }
 
 func lookup(ctx context.Context, resolver *net.Resolver, domain, recordType string) (int, error) {

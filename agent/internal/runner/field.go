@@ -261,6 +261,7 @@ func (r AdvancedRunner) DNSIntegrity(ctx context.Context, siteID, domain string,
 	details := DNSIntegrityDetails{Domain: domain, Answers: map[string][]string{}, Consistent: true}
 	canonical := ""
 	for name, address := range resolvers {
+		address = effectiveResolverAddress(address)
 		resolver := net.DefaultResolver
 		if address != "" && address != "auto" {
 			resolver = &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
