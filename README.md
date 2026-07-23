@@ -4,7 +4,7 @@ Free, local-first network monitoring appliance for IT support teams, MSPs, and t
 
 Website: [infracheck.app](https://infracheck.app/)  
 Product documentation: [infracheck.app/docs.html](https://infracheck.app/docs.html)  
-Start free: [infracheck.app/start-free.html](https://infracheck.app/start-free.html)
+Downloads: [infracheck.app/download.html](https://infracheck.app/download.html)
 
 Related guides:
 
@@ -18,11 +18,20 @@ Related guides:
 
 Infracheck Appliance is a Docker-based local telemetry stack that runs inside a customer network. It helps diagnose Wi-Fi complaints, WAN instability, DNS failures, HTTP/TLS issues, packet loss, unknown LAN devices, and intermittent support problems that are hard to prove from the outside.
 
-The appliance is designed to complement the Infracheck Android app:
+The appliance is designed to complement the Infracheck diagnostic apps:
 
-- The app shows what the technician or user phone experiences.
+- InfraZoom by Infracheck for Android shows what the technician or user phone experiences.
+- Infracheck for Windows shows what the technician or user PC experiences.
 - The appliance shows what the customer network experiences continuously from inside the LAN.
-- Together they help separate client-side Wi-Fi symptoms from site-wide network faults.
+- Together they help separate client-side Wi-Fi or PC symptoms from site-wide network faults.
+
+## Companion apps
+
+The Infracheck Appliance can run as a local monitoring container, but it is designed to work best with the companion diagnostic apps.
+
+- **InfraZoom by Infracheck for Android**: field Wi-Fi and network diagnostics, appliance pairing, phone-vs-site comparison, Wi-Fi live checks, roaming evidence, shareable output, and PDF evidence reports. Google Play link coming soon.
+- **Infracheck for Windows**: PC network diagnostics for Wi-Fi, Ethernet, DNS, HTTP/TLS, TCP, routes, VPN, DHCP, local history, optional appliance pairing, and PDF evidence reports.
+- **Downloads and current links**: [infracheck.app/download.html](https://infracheck.app/download.html)
 
 ## Best fit
 
@@ -103,7 +112,7 @@ Use the appliance to monitor WAN speed, packet loss, gateway latency, DNS respon
 
 ### "Wi-Fi drops when users move between rooms"
 
-Use the Android app for RSSI, BSSID, channel, and roaming evidence, then compare with appliance telemetry to determine whether the issue is local Wi-Fi/client-side or site-wide.
+Use InfraZoom by Infracheck for RSSI, BSSID, channel, and roaming evidence, then compare with appliance telemetry to determine whether the issue is local Wi-Fi/client-side or site-wide.
 
 ### "Something appeared on the network"
 
